@@ -30,6 +30,7 @@ env/
 
 # Project specific
 backend/.env
+frontend/.env
 frontend/node_modules/
 backend/venv/
 backend/__pycache__/

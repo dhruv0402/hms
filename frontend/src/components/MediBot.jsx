@@ -9,8 +9,8 @@ import { useNavigate } from 'react-router-dom'
 const GROQ_API = 'https://api.groq.com/openai/v1/chat/completions'
 const GROQ_MODEL = 'llama-3.3-70b-versatile'   // Fast, free, excellent
 
-// !! Paste your Groq API key below — get it free at console.groq.com
-const GROQ_KEY = 'YOUR_GROQ_API_KEY_HERE'
+// Groq API key is now loaded from environment variables (.env)
+const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY
 
 async function callGroq(messages, system) {
   const res = await fetch(GROQ_API, {
@@ -246,8 +246,8 @@ export default function MediBot() {
   }, [context, role, user])
 
   const send = async (txt) => {
-    if (GROQ_KEY === 'YOUR_GROQ_API_KEY_HERE') {
-      setError('Add your Groq API key in MediBot.jsx line 15. Get it free at console.groq.com')
+    if (!GROQ_KEY) {
+      setError('Groq API key not found. Please add VITE_GROQ_API_KEY to your frontend/.env file.')
       return
     }
     const msg = (txt || input).trim()
