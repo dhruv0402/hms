@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { doctorsAPI, departmentsAPI, appointmentsAPI, aiAPI } from '../../api'
+import { useAuth } from '../../hooks/useAuth.jsx'
 import { PageHeader, Field, EmptyState, Avatar, Alert } from '../../components/Spinner.jsx'
 import Spinner from '../../components/Spinner.jsx'
 import { Stethoscope, CheckCircle2, ChevronRight, Clock, Award, IndianRupee, Zap, Sparkles } from 'lucide-react'
@@ -11,6 +12,7 @@ const STEPS=['Choose Doctor','Date & Slot','Confirm']
 const DAY_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
 
 export default function BookAppointment() {
+  const { user } = useAuth()
   const navigate=useNavigate()
   const [step,setStep]=useState(0)
   const [depts,setDepts]=useState([])
@@ -40,7 +42,11 @@ export default function BookAppointment() {
 
   const handleBook = async () => {
     setBooking(true)
-    try { await appointmentsAPI.book({doctor_id:doc.doctor_id,slot_id:slot.slot_id,appt_date:date,appt_time:slot.start_time,reason}); toast.success('Appointment booked!'); navigate('/patient/appointments') }
+    try { 
+      await appointmentsAPI.book({doctor_id:doc.doctor_id,slot_id:slot.slot_id,appt_date:date,appt_time:slot.start_time,reason}); 
+      toast.success('Appointment booked!'); 
+      navigate(user?.role === 'doctor' ? '/doctor/appointments' : '/patient/appointments') 
+    }
     catch(err) { toast.error(err.response?.data?.error||'Booking failed') } finally { setBooking(false) }
   }
 

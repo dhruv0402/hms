@@ -34,3 +34,6 @@ frontend/.env
 frontend/node_modules/
 backend/venv/
 backend/__pycache__/
+hms_source_code/
+hms_source_code.zip
+tmp/

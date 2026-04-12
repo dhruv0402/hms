@@ -19,36 +19,44 @@
 
 ```
 medisync/
+├── docker-compose.yml          # Container orchestration
+├── setup_db.py                # Database automation & .env setup
+├── load_rich_data.py          # Script to populate extensive demo data
+├── fix_passwords.py           # Utility to reset/validate demo passwords
 ├── backend/
 │   ├── app.py                  # Flask entry point
 │   ├── config.py               # Configuration (DB, JWT, CORS)
 │   ├── models.py               # SQLAlchemy ORM models
+│   ├── socket_manager.py       # WebSocket handling (Chat/MediBot)
+│   ├── entrypoint.sh           # Docker entrypoint script
+│   ├── Dockerfile              # Backend container config
 │   ├── requirements.txt
-│   ├── .env.example
 │   └── routes/
 │       ├── auth.py             # Login, register, refresh, /me
 │       ├── appointments.py     # Book, list, update, available slots
+│       ├── pharmacy.py         # Inventory and medicine management
+│       ├── chat.py             # Internal messaging system
 │       └── other.py            # Patients, doctors, billing, prescriptions, admin
 │
 ├── database/
-│   ├── schema.sql              # Tables, triggers, views, stored procedures
-│   └── seed.sql                # Demo data (5 doctors, 5 patients, appointments, bills)
+│   ├── schema.sql              # Core tables, triggers, views, procedures
+│   ├── seed.sql                # Standard demo data
+│   ├── seed_rich.sql           # Extensive demo data for testing
+│   ├── pharmacy_schema.sql     # Pharmacy module tables
+│   └── seed_pharmacy.sql       # Pharmacy inventory data
 │
 └── frontend/
-    ├── index.html
-    ├── vite.config.js
-    ├── tailwind.config.js
+    ├── Dockerfile              # Frontend container config
+    ├── nginx.conf              # Production Nginx server config
     └── src/
         ├── App.jsx             # Router + protected routes
         ├── api/index.js        # Axios client + all API functions
-        ├── hooks/useAuth.jsx   # Auth context
-        ├── components/
-        │   ├── AppLayout.jsx   # Sidebar shell
-        │   └── Spinner.jsx     # All shared UI components
+        ├── hooks/              # useAuth, useSocket, useTheme
+        ├── components/         # AppLayout, MediBot, PageTransition, Skeleton, Spinner
         └── pages/
             ├── LoginPage.jsx
             ├── RegisterPage.jsx
-            ├── admin/          # Dashboard, Doctors, Patients, Billing, Users
+            ├── admin/          # Dashboard, Doctors, Patients, Billing, Users, Pharmacy
             ├── doctor/         # Dashboard, Appointments, Patients
             └── patient/        # Dashboard, Appointments, Book, Billing, Profile
 ```

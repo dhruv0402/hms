@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '../hooks/useAuth.jsx'
-import { appointmentsAPI, billingAPI, patientsAPI, adminAPI } from '../api/index.js'
+import { appointmentsAPI, billingAPI, patientsAPI, adminAPI, pharmacyAPI } from '../api/index.js'
 import clsx from 'clsx'
 import { Sparkles, X, Send, Minimize2, Maximize2, ChevronDown, Loader2, AlertTriangle, User, RotateCcw, Calendar, ClipboardList, IndianRupee, ChevronRight } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -65,6 +65,7 @@ RULES: Explain medical terms simply. Cross-check allergies when discussing medic
     const p = ctx.profile || {}
     const today_appts = ctx.todayAppts || []
     const upcoming = (ctx.appointments||[]).filter(a=>a.status==='Scheduled').slice(0,10)
+    const inv = ctx.inventory || {}
     return `${base}
 
 DOCTOR: Dr. ${p.first_name} ${p.last_name} | ${p.specialization} | ${p.department}
@@ -75,12 +76,17 @@ ${today_appts.map((a,i)=>`${i+1}. ${a.appt_time?.slice(0,5)} — ${a.patient_nam
 
 UPCOMING (next 10): ${upcoming.map(a=>`${a.appt_date} ${a.patient_name}`).join(', ') || 'None'}
 
-RULES: Be clinical and concise. Provide drug dosages and reference info when asked. Help draft clinical notes.`
+INVENTORY AWARENESS:
+• Total Stock: ${inv.total || 0} medicines
+• Low Stock Alert: ${inv.lowStockList || 'All critical items in stock'}
+
+RULES: Be clinical and concise. Provide drug dosages and reference info when asked. Help draft clinical notes. Mention medication availability if low.`
   }
 
   if (role === 'admin') {
     const k = ctx.kpis || {}
     const depts = (ctx.deptStats || []).map(d=>`${d.department}:${d.appointments}`).join(', ')
+    const inv = ctx.inventory || {}
     return `${base}
 
 HOSPITAL KPIs:
@@ -90,6 +96,10 @@ HOSPITAL KPIs:
 
 DEPARTMENT DISTRIBUTION: ${depts || 'No data'}
 
+INVENTORY SUMMARY:
+• Total Medicines: ${inv.total || 0}
+• Low Stock Items (${inv.lowStockCount || 0}): ${inv.lowStockList || 'None'}
+
 RULES: Be analytical. Provide operational insights. Help draft reports.`
   }
 
@@ -98,8 +108,9 @@ RULES: Be analytical. Provide operational insights. Help draft reports.`
   If the user wants to book an appointment, include [ACTION:BOOK] at the end.
   If they want to see their reports or history, include [ACTION:REPORTS] at the end.
   If they want to check bills or pricing, include [ACTION:BILLING] at the end.
+  If they want to check inventory or manage medicines, include [ACTION:PHARMACY] at the end.
   `
-  return base + (role === 'patient' ? actions : '')
+  return base + (['patient', 'admin', 'doctor'].includes(role) ? actions : '')
 }
 
 // ── Quick prompts ──────────────────────────────────────────────
@@ -122,15 +133,39 @@ async function fetchCtx(role, user) {
       return {profile:user?.profile, appointments:a, bills:b, history:h}
     }
     if (role === 'doctor') {
-      const [t,a] = await Promise.all([
+      const [t, a, m] = await Promise.all([
         appointmentsAPI.todaySchedule().then(r=>r.data.appointments).catch(()=>[]),
         appointmentsAPI.list({per_page:100}).then(r=>r.data.appointments).catch(()=>[]),
+        pharmacyAPI.listMedicines().then(r=>r.data).catch(()=>[]),
       ])
-      return {profile:user?.profile, todayAppts:t, appointments:a}
+      const lowStock = m.filter(item => item.stock_quantity <= item.min_stock_level)
+      return {
+        profile:user?.profile, 
+        todayAppts:t, 
+        appointments:a,
+        inventory: {
+          total: m.length,
+          lowStockList: lowStock.slice(0, 5).map(i => i.name).join(', ') + (lowStock.length > 5 ? '...' : '')
+        }
+      }
     }
     if (role === 'admin') {
-      const d = await adminAPI.dashboard().then(r=>r.data).catch(()=>({}))
-      return {kpis:d.kpis||{}, deptStats:d.dept_stats||[], recentAppts:d.recent_appointments||[]}
+      const [d, m] = await Promise.all([
+        adminAPI.dashboard().then(r=>r.data).catch(()=>({})),
+        pharmacyAPI.listMedicines().then(r=>r.data).catch(()=>[]),
+      ])
+      
+      const lowStock = m.filter(item => item.stock_quantity <= item.min_stock_level)
+      return {
+        kpis: d.kpis || {},
+        deptStats: d.dept_stats || [],
+        recentAppts: d.recent_appointments || [],
+        inventory: {
+          total: m.length,
+          lowStockCount: lowStock.length,
+          lowStockList: lowStock.slice(0, 10).map(i => `${i.name} (${i.stock_quantity})`).join(', ') + (lowStock.length > 10 ? '...' : '')
+        }
+      }
     }
   } catch {}
   return {}
@@ -172,6 +207,7 @@ function ActionButtons({ content, accent }) {
     BOOK:    { label: 'Book Appointment', to: '/patient/book',    icon: Calendar },
     REPORTS: { label: 'View Reports',     to: '/patient/history', icon: ClipboardList },
     BILLING: { label: 'Check Bills',      to: '/patient/billing', icon: IndianRupee },
+    PHARMACY: { label: 'Open Pharmacy Unit', to: '/admin/pharmacy', icon: ClipboardList },
   }
 
   const match = content.match(/\[ACTION:(\w+)\]/)

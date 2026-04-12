@@ -90,7 +90,7 @@ export default function App() {
             }>
               <Route index               element={<PatientDashboard />} />
               <Route path="appointments" element={<PatientAppointments />} />
-              <Route path="book"         element={<BookAppointment />} />
+              <Route path="book"         element={<ProtectedRoute roles={['patient', 'doctor']}><BookAppointment /></ProtectedRoute>} />
               <Route path="billing"      element={<PatientBilling />} />
               <Route path="profile"      element={<PatientProfile />} />
             </Route>
