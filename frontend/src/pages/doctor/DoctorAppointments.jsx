@@ -15,14 +15,22 @@ export default function DoctorAppointments() {
   const [presModal,setPresModal]=useState(null)
   const [saving,setSaving]=useState(false)
   const [pres,setPres]=useState(EMPTY)
+  const [inventory,setInventory]=useState([])
+  const [medSearch,setMedSearch]=useState('')
 
   const load = () => { setLoading(true); appointmentsAPI.list(filter?{status:filter}:{}).then(r=>setAppts(r.data.appointments||[])).catch(()=>toast.error('Failed')).finally(()=>setLoading(false)) }
   useEffect(load,[filter])
 
+  useEffect(() => {
+    import('../../api').then(({ pharmacyAPI }) => {
+      pharmacyAPI.listMedicines().then(r => setInventory(r.data)).catch(() => {})
+    })
+  }, [])
+
   const updateStatus = async (id,status) => { try { await appointmentsAPI.update(id,{status}); toast.success(`Marked ${status}`); load() } catch { toast.error('Failed') } }
-  const addMed = () => setPres(p=>({...p,medicines:[...p.medicines,{medicine_name:'',dosage:'',frequency:'',duration_days:'',instructions:''}]}))
+  const addMed = () => setPres(p=>({...p,medicines:[...p.medicines,{medicine_name:'',medicine_id:null,dosage:'',frequency:'',duration_days:'',instructions:''}]}))
   const removeMed = i => setPres(p=>({...p,medicines:p.medicines.filter((_,idx)=>idx!==i)}))
-  const setMed = (i,k) => e => setPres(p=>{ const m=[...p.medicines]; m[i]={...m[i],[k]:e.target.value}; return {...p,medicines:m} })
+  const setMed = (i,k,v) => setPres(p=>{ const m=[...p.medicines]; m[i]={...m[i],[k]:v}; return {...p,medicines:m} })
 
   const handlePrescription = async e => {
     e.preventDefault()
@@ -114,11 +122,52 @@ export default function DoctorAppointments() {
                     <button type="button" onClick={()=>removeMed(i)} className="text-red-400 hover:text-red-300 transition-colors"><Trash2 className="w-3.5 h-3.5"/></button>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <input placeholder="Medicine name *" value={m.medicine_name} onChange={setMed(i,'medicine_name')} className="input text-xs py-2"/>
-                    <input placeholder="Dosage (e.g. 500mg)" value={m.dosage} onChange={setMed(i,'dosage')} className="input text-xs py-2"/>
-                    <input placeholder="Frequency" value={m.frequency} onChange={setMed(i,'frequency')} className="input text-xs py-2"/>
-                    <input type="number" placeholder="Duration (days)" value={m.duration_days} onChange={setMed(i,'duration_days')} className="input text-xs py-2"/>
-                    <input placeholder="Instructions for patient" value={m.instructions} onChange={setMed(i,'instructions')} className="input text-xs py-2 col-span-2"/>
+                    <div className="col-span-2 relative">
+                      <input 
+                        placeholder="Search medicine name *" 
+                        value={m.medicine_name} 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setMed(i, 'medicine_name', val);
+                          setMed(i, 'medicine_id', null); // Reset ID if name changes manually
+                        }} 
+                        className="input text-xs py-2 w-full"
+                      />
+                      {m.medicine_name && !m.medicine_id && (
+                        <div className="absolute z-10 w-full mt-1 max-h-40 overflow-y-auto rounded-xl border border-white border-opacity-10 bg-dark-800 shadow-2xl backdrop-blur-xl">
+                          {inventory
+                            .filter(inv => inv.name.toLowerCase().includes(m.medicine_name.toLowerCase()))
+                            .map(inv => (
+                              <button 
+                                key={inv.medicine_id}
+                                type="button"
+                                onClick={() => {
+                                  setMed(i, 'medicine_name', inv.name);
+                                  setMed(i, 'medicine_id', inv.medicine_id);
+                                  if (inv.unit_price) {
+                                    toast(`Linked to inventory: ₹${inv.unit_price}`, { icon: '📦', style: { fontSize: '10px' } });
+                                  }
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs hover:bg-white hover:bg-opacity-5 transition-colors border-b border-white border-opacity-5 flex justify-between"
+                              >
+                                <span>{inv.name}</span>
+                                <span className={inv.stock_quantity > 0 ? "text-teal-400" : "text-red-400"}>
+                                  {inv.stock_quantity > 0 ? `${inv.stock_quantity} in stock` : 'Out of stock'}
+                                </span>
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                      {m.medicine_id && (
+                        <div className="absolute top-2 right-3">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-teal-400" />
+                        </div>
+                      )}
+                    </div>
+                    <input placeholder="Dosage (e.g. 500mg)" value={m.dosage} onChange={e => setMed(i,'dosage', e.target.value)} className="input text-xs py-2"/>
+                    <input placeholder="Frequency" value={m.frequency} onChange={e => setMed(i,'frequency', e.target.value)} className="input text-xs py-2"/>
+                    <input type="number" placeholder="Duration (days)" value={m.duration_days} onChange={e => setMed(i,'duration_days', e.target.value)} className="input text-xs py-2"/>
+                    <input placeholder="Instructions" value={m.instructions} onChange={e => setMed(i,'instructions', e.target.value)} className="input text-xs py-2 col-span-2"/>
                   </div>
                 </div>
               ))}

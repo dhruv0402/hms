@@ -10,6 +10,10 @@ services:
     volumes:
       - ./database/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql
       - ./database/seed.sql:/docker-entrypoint-initdb.d/2_seed.sql
+      - ./database/pharmacy_schema.sql:/docker-entrypoint-initdb.d/3_pharmacy_schema.sql
+      - ./database/seed_pharmacy.sql:/docker-entrypoint-initdb.d/4_seed_pharmacy.sql
+      - ./database/expand_hospital.sql:/docker-entrypoint-initdb.d/5_expand_hospital.sql
+      - ./database/seed_rich.sql:/docker-entrypoint-initdb.d/6_seed_rich.sql
       - medisync_db_data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -21,6 +25,8 @@ services:
     build: 
       context: ./backend
     container_name: medisync_backend
+    env_file:
+      - ./backend/.env
     environment:
       - DB_HOST=db
       - DB_PORT=3306
@@ -28,8 +34,6 @@ services:
       - DB_PASSWORD=password
       - DB_NAME=medisync
       - FLASK_DEBUG=True
-      - GROQ_API_KEY=your_groq_api_key_here
-      - ANTHROPIC_API_KEY=sk-ant-your-key-here
     ports:
       - "5000:5000"
     depends_on:

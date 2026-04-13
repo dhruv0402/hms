@@ -3,7 +3,8 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from datetime import datetime
 from models import (
     db, Patient, Doctor, Department, Bill, Prescription, PrescriptionMedicine,
-    MedicalHistory, AvailabilitySlot, Appointment, AuditLog, User
+    MedicalHistory, AvailabilitySlot, Appointment, AuditLog, User,
+    Medicine, InventoryTransaction
 )
 
 # ──────────────────────────────────────────────────────────
@@ -281,26 +282,64 @@ def create_prescription():
     if claims.get("role") not in ("doctor", "admin"):
         return jsonify({"error": "Forbidden"}), 403
     data = request.get_json()
-    pres = Prescription(
-        appt_id        = data["appt_id"],
-        diagnosis      = data["diagnosis"],
-        notes          = data.get("notes"),
-        follow_up_date = data.get("follow_up_date"),
-    )
-    db.session.add(pres)
+    appt_id = data["appt_id"]
+    identity = get_jwt_identity()
+
+    # Check for existing prescription to allow idempotency/updates
+    pres = Prescription.query.filter_by(appt_id=appt_id).first()
+    
+    if pres:
+        # Update existing
+        pres.diagnosis = data["diagnosis"]
+        pres.notes = data.get("notes")
+        pres.follow_up_date = data.get("follow_up_date")
+        # Clear old medicines and replace
+        for old_med in pres.medicines:
+            db.session.delete(old_med)
+    else:
+        # Create new
+        pres = Prescription(
+            appt_id        = appt_id,
+            diagnosis      = data["diagnosis"],
+            notes          = data.get("notes"),
+            follow_up_date = data.get("follow_up_date"),
+        )
+        db.session.add(pres)
+    
     db.session.flush()
+
     for med in data.get("medicines", []):
         m = PrescriptionMedicine(
             prescription_id = pres.prescription_id,
             medicine_name   = med["medicine_name"],
+            medicine_id     = med.get("medicine_id"),  # Link to pharmacy if provided
             dosage          = med.get("dosage"),
             frequency       = med.get("frequency"),
             duration_days   = med.get("duration_days"),
             instructions    = med.get("instructions"),
         )
         db.session.add(m)
+        
+        # Automatic Stock Deduction
+        if med.get("medicine_id"):
+            medicine = Medicine.query.get(med["medicine_id"])
+            if medicine:
+                # Deduct stock (simplified to 1 unit per prescription item)
+                medicine.stock_quantity -= 1
+                
+                # Record transaction
+                trx = InventoryTransaction(
+                    medicine_id  = medicine.medicine_id,
+                    type         = "Sale",
+                    quantity     = 1,
+                    description  = f"Prescribed for Appt #{appt_id}",
+                    performed_by = int(identity)
+                )
+                db.session.add(trx)
+    
     db.session.commit()
-    return jsonify({"message": "Prescription created", "prescription": pres.to_dict()}), 201
+    msg = "Prescription updated" if pres else "Prescription created"
+    return jsonify({"message": msg, "prescription": pres.to_dict()}), 201
 
 
 # ──────────────────────────────────────────────────────────
